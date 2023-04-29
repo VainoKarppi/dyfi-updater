@@ -1,7 +1,7 @@
 #!/bin/bash
 
-path=./publish
-selfContained=false
+path=../publish
+selfContained=true
 
 rm -r $path
 
