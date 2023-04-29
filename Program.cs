@@ -35,17 +35,25 @@ bool updateNow = settings.UpdateNow;
 
 Log($"Settings: Username: {username}, DomainName: {domainName}, UpdateInterval: {updateIntervalDays}, UpdateNow: {updateNow}");
 
-//--- create last updated file
-await File.WriteAllTextAsync("lastupdate.txt",DateTime.Now.ToString());
 
-//--- Restore last update time
-DateTime lastupdate = DateTime.Parse(File.ReadAllText("lastupdate.txt"));
+DateTime nextUpdate = DateTime.Now.AddDays(updateIntervalDays);
 
-Log($"Last update time: {lastupdate}");
-Log($"Next update time: {lastupdate.AddDays(updateIntervalDays)}");
+//--- Get next time (if found)
+if (File.Exists("lastupdate.txt")) {
+    //--- Restore last update time
+    DateTime lastupdate = DateTime.Parse(File.ReadAllText("lastupdate.txt"));
+    Log($"Last update time: {lastupdate}");
+    nextUpdate = lastupdate.AddDays(updateIntervalDays);
+} else {
+    //--- Create last updated file
+    await File.WriteAllTextAsync("lastupdate.txt",DateTime.Now.ToString());
+}
+
+
+Log($"Next update time: {nextUpdate}");
 
 //--- Create new HTTP client
-using HttpClient client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
+HttpClient client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false});
 
 //--- Wait and make sure connection is established before continue.
 string lastIp = "";
@@ -67,21 +75,29 @@ string requestUrl = "http://www.dy.fi/nic/update?hostname=" + domainName;
 
 //--- Start main monitor Thread
 while (true) {
-    string newIp = await GetIpAdressAsync();
-    DateTime currentTime = DateTime.Now;
-    if (updateNow || (currentTime > lastupdate.AddDays(updateIntervalDays) || lastIp != newIp)) {
-        await UpdateDomainAsync(newIp);
-        updateNow = false;
-        lastIp = newIp;
-        lastupdate = currentTime;
-        Log($"Next update time: {lastupdate.AddDays(updateIntervalDays)}");
-        Log($"Current IP Adress: {newIp}");
-    } else {
-        TimeSpan interval = lastupdate.AddDays(updateIntervalDays) - currentTime;
-        Log($"Next update in: {interval.Days} days, {interval.Hours} hours");
+    try {
+        string newIp = await GetIpAdressAsync();
+        DateTime currentTime = DateTime.Now;
+        if (updateNow || (currentTime > nextUpdate || lastIp != newIp)) {
+            await UpdateDomainAsync(newIp);
+            await File.WriteAllTextAsync("lastupdate.txt",DateTime.Now.ToString());
+            updateNow = false;
+            lastIp = newIp;
+            nextUpdate = currentTime.AddDays(updateIntervalDays);
+            Log($"Next update time: {nextUpdate}");
+            Log($"Current IP Adress: {newIp}");
+        }
+        
+        TimeSpan interval = nextUpdate - currentTime;
+        Log($"Next update in: {interval.Days} days, {interval.Hours} hours, {interval.Minutes} minutes...");
+        // 60 minutes
+        Thread.Sleep(60*(1000*60));
+    } catch (Exception ex) {
+        Console.WriteLine(ex.Message);
+        Console.WriteLine("\nResetting loop...\n");
+        // Create new HTTP client just in case...
+        client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false});
     }
-    // 30 minutes
-    Thread.Sleep(1800000);
 }
 
 
@@ -108,7 +124,6 @@ async Task<HttpResponseMessage> WebRequestAsync(string url) {
 async Task UpdateDomainAsync(string ip) {
     Log($"Updating domain... ({domainName})");
     await WebRequestAsync(requestUrl);
-    await File.WriteAllTextAsync("lastupdate.txt",DateTime.Now.ToString());
 }
 
 async Task<string> GetIpAdressAsync() {
