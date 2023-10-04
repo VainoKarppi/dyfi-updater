@@ -79,7 +79,8 @@ while (true) {
         string newIp = await GetIpAdressAsync();
         DateTime currentTime = DateTime.Now;
         if (updateNow || (currentTime > nextUpdate || lastIp != newIp)) {
-            await UpdateDomainAsync(newIp);
+            bool requestSuccess = await UpdateDomainAsync(newIp);
+            if (!requestSuccess) throw new HttpRequestException("Domain update failed!");
             await File.WriteAllTextAsync("lastupdate.txt",DateTime.Now.ToString());
             updateNow = false;
             lastIp = newIp;
@@ -94,7 +95,9 @@ while (true) {
         Thread.Sleep(60*(1000*60));
     } catch (Exception ex) {
         Console.WriteLine(ex.Message);
-        Console.WriteLine("\nResetting loop...\n");
+        
+        Console.WriteLine("\nRestarting loop in 60 minutes...\n");
+        Thread.Sleep(60*(1000*60));
         // Create new HTTP client just in case...
         client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false});
     }
@@ -112,18 +115,22 @@ async Task<HttpResponseMessage> WebRequestAsync(string url) {
 
     client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authString);
     var response = await client.PostAsync(url, new StringContent(url));
-
+    
+    if (!response.IsSuccessStatusCode) throw new HttpRequestException($"Invalid status: {response.StatusCode}");
     if (response.StatusCode == HttpStatusCode.Found) {
         var urlStatus = response.Headers.GetValues("Location").First();
         Log(urlStatus);
     }
-    Log($"RESPONSE: {response.Content.ReadAsStringAsync().Result.TrimEnd()}");
     return response;
 }
 
-async Task UpdateDomainAsync(string ip) {
+async Task<bool> UpdateDomainAsync(string ip) {
     Log($"Updating domain... ({domainName})");
-    await WebRequestAsync(requestUrl);
+    HttpResponseMessage response = await WebRequestAsync(requestUrl);
+    string? responseString = response.Content.ReadAsStringAsync().Result.TrimEnd()!;
+    Log($"RESPONSE: {responseString}");
+    if (string.IsNullOrEmpty(responseString)) throw new HttpRequestException("No response text");
+    return responseString.ToLower() == "nochg" || responseString.ToLower().StartsWith("good");
 }
 
 async Task<string> GetIpAdressAsync() {
