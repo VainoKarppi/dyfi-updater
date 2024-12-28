@@ -36,7 +36,7 @@ if (!File.Exists("settings.json")) {
 Log("Starting program...");
 Log($"RootDir: {Directory.GetCurrentDirectory()}");
 
-Log($"Settings: Username: {settings.Username}, settings.DomainName: {settings.DomainName}, UpdateInterval: {settings.UpdateIntervalDays}, UpdateNow: {settings.UpdateNow}");
+Log($"Username: {settings.Username}, DomainName: {settings.DomainName}, UpdateInterval: {settings.UpdateIntervalDays}, UpdateNow: {settings.UpdateNow}, UseLogFile: {settings.UseLogFile}");
 
 
 DateTime nextUpdate = DateTime.Now.AddDays(settings.UpdateIntervalDays);
