@@ -20,30 +20,33 @@ if (File.Exists("settings.json") && startDir != null && startDir != Directory.Ge
 
 //--- Update Root Folder
 if (startDir != null) Directory.SetCurrentDirectory(startDir!);
-Log("Starting program...");
-Log($"RootDir: {Directory.GetCurrentDirectory()}");
 
 
 //--- Restore Settings
-Settings settings = new Settings();
-settings  = JsonSerializer.Deserialize<Settings>(File.ReadAllText("settings.json"))!;
-string username = settings.Username;
-string password = settings.Password;
-string domainName = settings.DomainName;
-int updateIntervalDays = settings.UpdateIntervalDays;
-bool updateNow = settings.UpdateNow;
+Settings settings;
+if (!File.Exists("settings.json")) {
+    settings = new Settings();
+    string json = JsonSerializer.Serialize(settings,new JsonSerializerOptions { WriteIndented = true });
+    File.WriteAllText("settings.json", json);
+} else {
+    settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText("settings.json"))!;
+}
 
-Log($"Settings: Username: {username}, DomainName: {domainName}, UpdateInterval: {updateIntervalDays}, UpdateNow: {updateNow}");
+
+Log("Starting program...");
+Log($"RootDir: {Directory.GetCurrentDirectory()}");
+
+Log($"Settings: Username: {settings.Username}, settings.DomainName: {settings.DomainName}, UpdateInterval: {settings.UpdateIntervalDays}, UpdateNow: {settings.UpdateNow}");
 
 
-DateTime nextUpdate = DateTime.Now.AddDays(updateIntervalDays);
+DateTime nextUpdate = DateTime.Now.AddDays(settings.UpdateIntervalDays);
 
 //--- Get next time (if found)
 if (File.Exists("lastupdate.txt")) {
     //--- Restore last update time
     DateTime lastupdate = DateTime.Parse(File.ReadAllText("lastupdate.txt"));
     Log($"Last update time: {lastupdate}");
-    nextUpdate = lastupdate.AddDays(updateIntervalDays);
+    nextUpdate = lastupdate.AddDays(settings.UpdateIntervalDays);
 } else {
     //--- Create last updated file
     await File.WriteAllTextAsync("lastupdate.txt",DateTime.Now.ToString());
@@ -70,21 +73,21 @@ for (int i = -5; i < 0; i++) {
 if (lastIp == "") throw new TimeoutException("No internet connection could be established!");
 
 //--- Create url request with domain
-if (!domainName.ToLower().Contains("dy.fi")) domainName += ".dy.fi";
-string requestUrl = "http://www.dy.fi/nic/update?hostname=" + domainName;
+if (!settings.DomainName.ToLower().Contains("dy.fi")) settings.DomainName += ".dy.fi";
+string requestUrl = "http://www.dy.fi/nic/update?hostname=" + settings.DomainName;
 
 //--- Start main monitor Thread
 while (true) {
     try {
         string newIp = await GetIpAdressAsync();
         DateTime currentTime = DateTime.Now;
-        if (updateNow || (currentTime > nextUpdate || lastIp != newIp)) {
+        if (settings.UpdateNow || (currentTime > nextUpdate || lastIp != newIp)) {
             bool requestSuccess = await UpdateDomainAsync(newIp);
             if (!requestSuccess) throw new HttpRequestException("Domain update failed!");
             await File.WriteAllTextAsync("lastupdate.txt",DateTime.Now.ToString());
-            updateNow = false;
+            settings.UpdateNow = false;
             lastIp = newIp;
-            nextUpdate = currentTime.AddDays(updateIntervalDays);
+            nextUpdate = currentTime.AddDays(settings.UpdateIntervalDays);
             Log($"Next update time: {nextUpdate}");
             Log($"Current IP Adress: {newIp}");
         }
@@ -111,7 +114,7 @@ while (true) {
 //!! --------|
 
 async Task<HttpResponseMessage> WebRequestAsync(string url) {
-    var authString = Convert.ToBase64String(Encoding.UTF8.GetBytes(username+":"+password));
+    var authString = Convert.ToBase64String(Encoding.UTF8.GetBytes(settings.Username+":"+settings.Password));
 
     client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authString);
     var response = await client.PostAsync(url, new StringContent(url));
@@ -125,7 +128,7 @@ async Task<HttpResponseMessage> WebRequestAsync(string url) {
 }
 
 async Task<bool> UpdateDomainAsync(string ip) {
-    Log($"Updating domain... ({domainName})");
+    Log($"Updating domain... ({settings.DomainName})");
     HttpResponseMessage response = await WebRequestAsync(requestUrl);
     string? responseString = response.Content.ReadAsStringAsync().Result.TrimEnd()!;
     Log($"RESPONSE: {responseString}");
@@ -144,7 +147,7 @@ void Log(object? data) {
     string appendText = $"[{DateTime.Now.ToShortDateString()} - {DateTime.Now.ToLongTimeString()}] {data}{Environment.NewLine}";
     Console.Write(appendText);
     
-    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+    if (settings != null && settings.UseLogFile) {
         File.AppendAllText("log.log", appendText, Encoding.UTF8);
     }
 }
@@ -160,18 +163,12 @@ class Settings {
     public string Password { get; set; } = "passw0rd";
     public string DomainName { get; set; } = "address.dy.fi";
     public int UpdateIntervalDays { get; set; } = 6;
-    public bool UpdateNow { get; set; } = false;
+    public bool UpdateNow { get; set; } = true;
+    public bool UseLogFile { get; set; } = true;
 
     [JsonConstructor]
-    public Settings(string username, string password, string domainName, int updateIntervalDays, bool updateNow) =>
-        (Username, Password, DomainName, UpdateIntervalDays, UpdateNow) = (username, password, domainName, updateIntervalDays, updateNow);
+    public Settings(string username, string password, string domainName, int updateIntervalDays, bool updateNow, bool useLogFile) =>
+        (Username, Password, DomainName, UpdateIntervalDays, UpdateNow, UseLogFile) = (username, password, domainName, updateIntervalDays, updateNow, useLogFile);
 
-
-    public Settings() {
-        if (!File.Exists("settings.json")) {
-            string json = JsonSerializer.Serialize(this,new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText("settings.json", json);
-            return;
-        }
-    }
+    public Settings() {}
 }
