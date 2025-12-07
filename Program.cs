@@ -16,6 +16,8 @@ if (File.Exists("settings.json") && startDir != null && startDir != Directory.Ge
     } else {
         File.Copy("settings.json",startDir + @"\settings.json");
     }
+} else {
+    File.WriteAllText("settings.json", JsonSerializer.Serialize(new Settings(), new JsonSerializerOptions{ WriteIndented = true }));
 }
 
 //--- Update Root Folder

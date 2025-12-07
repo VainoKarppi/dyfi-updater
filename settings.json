@@ -1,0 +1,8 @@
+{
+  "Username": "my.email@email.com",
+  "Password": "passw0rd",
+  "DomainName": "address.dy.fi",
+  "UpdateIntervalDays": 6,
+  "UpdateNow": true,
+  "UseLogFile": true
+}

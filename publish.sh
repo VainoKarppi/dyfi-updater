@@ -1,6 +1,6 @@
 #!/bin/bash
 
-path=../publish
+path=./publish
 selfContained=true
 
 rm -r $path
