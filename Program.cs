@@ -1,176 +1,221 @@
-﻿
-using System.Net;
-using System.Reflection;
-using System.Runtime.InteropServices;
+﻿using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
+string? startDir = Path.GetDirectoryName(AppContext.BaseDirectory);
 
-string? startDir = Path.GetDirectoryName(AppDomain.CurrentDomain.BaseDirectory);
-
-//--- Copy settings template to root if found
-if (File.Exists("settings.json") && startDir != null && startDir != Directory.GetCurrentDirectory()) {
-    if (File.Exists(startDir + @"\settings.json")) {
-        File.Replace("settings.json",startDir + @"\settings.json","settings.json.old");
-    } else {
-        File.Copy("settings.json",startDir + @"\settings.json");
-    }
-} else {
-    File.WriteAllText("settings.json", JsonSerializer.Serialize(new Settings(), new JsonSerializerOptions{ WriteIndented = true }));
+// --- Ensure settings.json exists at root ---
+string settingsPath = Path.Combine(startDir ?? Directory.GetCurrentDirectory(), "settings.json");
+if (!File.Exists(settingsPath))
+{
+    Console.WriteLine("No settings.json found, creating default settings...");
+    Settings defaultSettings = new Settings();
+    string json = JsonSerializer.Serialize(defaultSettings, new JsonSerializerOptions { WriteIndented = true });
+    File.WriteAllText(settingsPath, json, Encoding.UTF8);
 }
 
-//--- Update Root Folder
-if (startDir != null) Directory.SetCurrentDirectory(startDir!);
+// --- Set current directory to root ---
+if (startDir != null)
+    Directory.SetCurrentDirectory(startDir);
 
+// --- Load settings ---
+Settings settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(settingsPath))!;
 
-//--- Restore Settings
-Settings settings;
-if (!File.Exists("settings.json")) {
-    settings = new Settings();
-    string json = JsonSerializer.Serialize(settings,new JsonSerializerOptions { WriteIndented = true });
-    File.WriteAllText("settings.json", json);
-} else {
-    settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText("settings.json"))!;
-}
-
-
-Log("Starting program...");
-Log($"RootDir: {Directory.GetCurrentDirectory()}");
-
-Log($"Username: {settings.Username}, DomainName: {settings.DomainName}, UpdateInterval: {settings.UpdateIntervalDays}, UpdateNow: {settings.UpdateNow}, UseLogFile: {settings.UseLogFile}");
-
+LogStartupInfo(settings);
 
 DateTime nextUpdate = DateTime.Now.AddDays(settings.UpdateIntervalDays);
 
-//--- Get next time (if found)
-if (File.Exists("lastupdate.txt")) {
-    //--- Restore last update time
-    DateTime lastupdate = DateTime.Parse(File.ReadAllText("lastupdate.txt"));
-    Log($"Last update time: {lastupdate}");
-    nextUpdate = lastupdate.AddDays(settings.UpdateIntervalDays);
-} else {
-    //--- Create last updated file
-    await File.WriteAllTextAsync("lastupdate.txt",DateTime.Now.ToString());
+// --- Restore last update time ---
+string lastUpdateFile = Path.Combine(Directory.GetCurrentDirectory(), "lastupdate.txt");
+if (File.Exists(lastUpdateFile))
+{
+    DateTime lastUpdate = DateTime.Parse(File.ReadAllText(lastUpdateFile));
+    Log($"Last update: {lastUpdate}");
+    nextUpdate = lastUpdate.AddDays(settings.UpdateIntervalDays);
+}
+else
+{
+    await File.WriteAllTextAsync(lastUpdateFile, DateTime.Now.ToString());
 }
 
+Log($"Next scheduled update: {nextUpdate}");
 
-Log($"Next update time: {nextUpdate}");
+// --- HTTP client ---
+HttpClient client = new(new HttpClientHandler { AllowAutoRedirect = false });
 
-//--- Create new HTTP client
-HttpClient client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false});
+// --- Wait for internet connection ---
+string lastIp = await WaitForIpAsync(client);
 
-//--- Wait and make sure connection is established before continue.
-string lastIp = "";
-for (int i = -5; i < 0; i++) {
-    Thread.Sleep(1000);
-    try {
-        lastIp = await GetIpAdressAsync();
-        Log($"Current IP Adress: {lastIp}");
-        break;
-    } catch (Exception ex) {
-        Log($"{ex.Message} Trying again... ({Math.Abs(i)} tries left)");
-    }
-}
-if (lastIp == "") throw new TimeoutException("No internet connection could be established!");
+// --- Main monitor loop ---
+while (true)
+{
+    try
+    {
+        string currentIp = await GetIpAddressAsync(client);
+        DateTime now = DateTime.Now;
 
-//--- Create url request with domain
-if (!settings.DomainName.ToLower().Contains("dy.fi")) settings.DomainName += ".dy.fi";
-string requestUrl = "http://www.dy.fi/nic/update?hostname=" + settings.DomainName;
+        if (settings.UpdateNow || now > nextUpdate || lastIp != currentIp)
+        {
+            foreach (var domain in settings.DomainNames)
+            {
+                string domainToUpdate = domain;
+                if (!domainToUpdate.ToLower().Contains("dy.fi"))
+                    domainToUpdate += ".dy.fi";
 
-//--- Start main monitor Thread
-while (true) {
-    try {
-        string newIp = await GetIpAdressAsync();
-        DateTime currentTime = DateTime.Now;
-        if (settings.UpdateNow || (currentTime > nextUpdate || lastIp != newIp)) {
-            bool requestSuccess = await UpdateDomainAsync(newIp);
-            if (!requestSuccess) throw new HttpRequestException("Domain update failed!");
-            await File.WriteAllTextAsync("lastupdate.txt",DateTime.Now.ToString());
+                string requestUrl = $"http://www.dy.fi/nic/update?hostname={domainToUpdate}";
+                bool updated = await UpdateDomainAsync(client, requestUrl, currentIp, settings);
+
+                if (updated)
+                    Log($"Domain '{domainToUpdate}' updated successfully to IP {currentIp}.");
+                else
+                    Log($"Domain '{domainToUpdate}' update failed.");
+            }
+
+            await File.WriteAllTextAsync(lastUpdateFile, DateTime.Now.ToString());
             settings.UpdateNow = false;
-            lastIp = newIp;
-            nextUpdate = currentTime.AddDays(settings.UpdateIntervalDays);
-            Log($"Next update time: {nextUpdate}");
-            Log($"Current IP Adress: {newIp}");
+            lastIp = currentIp;
+            nextUpdate = now.AddDays(settings.UpdateIntervalDays);
+            Log($"Next scheduled update: {nextUpdate}");
         }
-        
-        TimeSpan interval = nextUpdate - currentTime;
-        Log($"Next update in: {interval.Days} days, {interval.Hours} hours, {interval.Minutes} minutes...");
-        // 60 minutes
-        Thread.Sleep(60*(1000*60));
-    } catch (Exception ex) {
-        Console.WriteLine(ex.Message);
-        
-        Console.WriteLine("\nRestarting loop in 60 minutes...\n");
-        Thread.Sleep(60*(1000*60));
-        // Create new HTTP client just in case...
-        client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false});
+        else
+        {
+            Log($"No update needed. Current IP: {currentIp}, Next update: {nextUpdate}");
+        }
+
+        // Wait 1 hour before next check
+        await Task.Delay(TimeSpan.FromHours(1));
+    }
+    catch (Exception ex)
+    {
+        Log($"ERROR: {ex.Message} - Restarting loop in 60 minutes...");
+        await Task.Delay(TimeSpan.FromMinutes(60));
+        client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
     }
 }
 
+// ---------------- METHODS ----------------
 
-
-
-//!! --------|
-//!! METHODS |
-//!! --------|
-
-async Task<HttpResponseMessage> WebRequestAsync(string url) {
-    var authString = Convert.ToBase64String(Encoding.UTF8.GetBytes(settings.Username+":"+settings.Password));
-
-    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authString);
-    var response = await client.PostAsync(url, new StringContent(url));
-    
-    if (!response.IsSuccessStatusCode) throw new HttpRequestException($"Invalid status: {response.StatusCode}");
-    if (response.StatusCode == HttpStatusCode.Found) {
-        var urlStatus = response.Headers.GetValues("Location").First();
-        Log(urlStatus);
+async Task<string> WaitForIpAsync(HttpClient httpClient)
+{
+    string ip = "";
+    for (int i = -5; i < 0; i++)
+    {
+        await Task.Delay(1000);
+        try
+        {
+            ip = await GetIpAddressAsync(httpClient);
+            Log($"Current external IP: {ip}");
+            break;
+        }
+        catch (Exception ex)
+        {
+            Log($"Failed to get IP ({Math.Abs(i)} tries left): {ex.Message}");
+        }
     }
+
+    if (string.IsNullOrEmpty(ip))
+        throw new TimeoutException("No internet connection could be established!");
+
+    return ip;
+}
+
+async Task<string> GetIpAddressAsync(HttpClient httpClient)
+{
+    string[] services = new[]
+    {
+        "http://icanhazip.com",
+        "http://checkip.amazonaws.com",
+        "http://api.ipify.org",
+        "http://ifconfig.me"
+    };
+
+    foreach (var service in services)
+    {
+        try
+        {
+            string ip = (await httpClient.GetStringAsync(service)).Trim();
+            if (!string.IsNullOrEmpty(ip))
+                return ip;
+        }
+        catch
+        {
+            Log($"Failed to fetch IP from {service}, trying next...");
+        }
+    }
+
+    throw new TimeoutException("Could not retrieve external IP from any service.");
+}
+
+async Task<HttpResponseMessage> WebRequestAsync(HttpClient httpClient, string url, Settings settings)
+{
+    var authString = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{settings.Username}:{settings.Password}"));
+    httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", authString);
+
+    var response = await httpClient.PostAsync(url, new StringContent(url));
+
+    if (!response.IsSuccessStatusCode)
+        throw new HttpRequestException($"Invalid status: {response.StatusCode}");
+
+    if (response.StatusCode == HttpStatusCode.Found)
+    {
+        string redirect = response.Headers.Location?.ToString() ?? "unknown";
+        Log($"Redirect: {redirect}");
+    }
+
     return response;
 }
 
-async Task<bool> UpdateDomainAsync(string ip) {
-    Log($"Updating domain... ({settings.DomainName})");
-    HttpResponseMessage response = await WebRequestAsync(requestUrl);
-    string? responseString = response.Content.ReadAsStringAsync().Result.TrimEnd()!;
-    Log($"RESPONSE: {responseString}");
-    if (string.IsNullOrEmpty(responseString)) throw new HttpRequestException("No response text");
-    return responseString.ToLower() == "nochg" || responseString.ToLower().StartsWith("good");
+async Task<bool> UpdateDomainAsync(HttpClient httpClient, string url, string ip, Settings settings)
+{
+    Log($"Updating domain... ({url})");
+    HttpResponseMessage response = await WebRequestAsync(httpClient, url, settings);
+    string responseString = (await response.Content.ReadAsStringAsync()).Trim();
+    Log($"Response: {responseString}");
+    return !string.IsNullOrEmpty(responseString) && (responseString.ToLower() == "nochg" || responseString.ToLower().StartsWith("good"));
 }
 
-async Task<string> GetIpAdressAsync() {
-    var response = await client.GetStringAsync("http://icanhazip.com");
-    return response.TrimEnd();
-}
-
-void Log(object? data) {
+void Log(object? data)
+{
     if (data == null) return;
-     
-    string appendText = $"[{DateTime.Now.ToShortDateString()} - {DateTime.Now.ToLongTimeString()}] {data}{Environment.NewLine}";
+
+    string appendText = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {data}{Environment.NewLine}";
     Console.Write(appendText);
-    
-    if (settings != null && settings.UseLogFile) {
+
+    if (settings != null && settings.UseLogFile)
         File.AppendAllText("log.log", appendText, Encoding.UTF8);
-    }
 }
 
+void LogStartupInfo(Settings settings)
+{
+    Log("========== DYFI-UPDATER START ==========");
+    Log($"Root directory: {Directory.GetCurrentDirectory()}");
+    Log($"Username: {settings.Username}");
+    Log($"Domains: {string.Join(", ", settings.DomainNames)}");
+    Log($"Update interval: {settings.UpdateIntervalDays} days");
+    Log($"Update immediately on start: {settings.UpdateNow}");
+    Log($"Logging to file: {settings.UseLogFile}");
+    Log("========================================");
+}
 
+// ---------------- SETTINGS CLASS ----------------
 
-//!! ---------|
-//!! SETTINGS |
-//!! ---------|
-
-class Settings {
+class Settings
+{
     public string Username { get; set; } = "my.email@email.com";
     public string Password { get; set; } = "passw0rd";
-    public string DomainName { get; set; } = "address.dy.fi";
+
+    // Multiple domains
+    public string[] DomainNames { get; set; } = new[] { "address.dy.fi" };
+
     public int UpdateIntervalDays { get; set; } = 6;
     public bool UpdateNow { get; set; } = true;
     public bool UseLogFile { get; set; } = true;
 
     [JsonConstructor]
-    public Settings(string username, string password, string domainName, int updateIntervalDays, bool updateNow, bool useLogFile) =>
-        (Username, Password, DomainName, UpdateIntervalDays, UpdateNow, UseLogFile) = (username, password, domainName, updateIntervalDays, updateNow, useLogFile);
+    public Settings(string username, string password, string[] domainNames, int updateIntervalDays, bool updateNow, bool useLogFile) =>
+        (Username, Password, DomainNames, UpdateIntervalDays, UpdateNow, UseLogFile) =
+        (username, password, domainNames, updateIntervalDays, updateNow, useLogFile);
 
-    public Settings() {}
+    public Settings() { }
 }
