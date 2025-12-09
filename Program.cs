@@ -60,10 +60,10 @@ while (true)
             foreach (var domain in settings.DomainNames)
             {
                 string domainToUpdate = domain;
-                if (!domainToUpdate.ToLower().Contains("dy.fi"))
+                if (!domainToUpdate.EndsWith(".dy.fi", StringComparison.OrdinalIgnoreCase))
                     domainToUpdate += ".dy.fi";
 
-                string requestUrl = $"http://www.dy.fi/nic/update?hostname={domainToUpdate}";
+                string requestUrl = $"https://www.dy.fi/nic/update?hostname={domainToUpdate}";
                 bool updated = await UpdateDomainAsync(client, requestUrl, currentIp, settings);
 
                 if (updated)
@@ -122,13 +122,12 @@ async Task<string> WaitForIpAsync(HttpClient httpClient)
 
 async Task<string> GetIpAddressAsync(HttpClient httpClient)
 {
-    string[] services = new[]
-    {
-        "http://icanhazip.com",
-        "http://checkip.amazonaws.com",
-        "http://api.ipify.org",
-        "http://ifconfig.me"
-    };
+    string[] services = [
+        "https://icanhazip.com",
+        "https://checkip.amazonaws.com",
+        "https://api.ipify.org",
+        "https://ifconfig.me"
+    ];
 
     foreach (var service in services)
     {
@@ -171,7 +170,6 @@ async Task<bool> UpdateDomainAsync(HttpClient httpClient, string url, string ip,
     Log($"Updating domain... ({url})");
     HttpResponseMessage response = await WebRequestAsync(httpClient, url, settings);
     string responseString = (await response.Content.ReadAsStringAsync()).Trim();
-    Log($"Response: {responseString}");
     return !string.IsNullOrEmpty(responseString) && (responseString.ToLower() == "nochg" || responseString.ToLower().StartsWith("good"));
 }
 
