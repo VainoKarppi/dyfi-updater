@@ -8,6 +8,7 @@ selfContained=true
 buildWinX64=true
 buildLinuxX64=true
 buildLinuxArm64=true
+buildOsxX64=true
 
 # ---------------- FIND PROJECT FILE ----------------
 projFile=$(find . -maxdepth 1 -name "*.csproj" | head -n 1)
@@ -51,6 +52,22 @@ if [ "$buildLinuxX64" = true ]; then
     dotnet publish "$projFile" --output $path/linux-x64 --runtime linux-x64 --self-contained $selfContained
     if [ $? -ne 0 ]; then
         echo "ERROR: Linux-x64 Build failed!"
+        sleep 3
+        exit 1
+    fi
+    echo ""
+fi
+
+echo "Build success!"
+echo ""
+sleep 1
+
+# ---------------- OSX x64 ----------------
+if [ "$buildOsxX64" = true ]; then
+    echo "Building osx-x64 version..."
+    dotnet publish "$projFile" --output $path/osx-x64 --runtime osx-x64 --self-contained $selfContained
+    if [ $? -ne 0 ]; then
+        echo "ERROR: Osx-x64 Build failed!"
         sleep 3
         exit 1
     fi
