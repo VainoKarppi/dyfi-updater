@@ -1,5 +1,53 @@
-obj/
+# -------------------------
+# C# / .NET
+# -------------------------
 bin/
-publish/
-
+obj/
+*.dll
+*.exe
+*.pdb
+*.user
+*.vs
+*.suo
+*.csproj.user
 *.sln
+
+# -------------------------
+# Python
+# -------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+env/
+venv/
+*.pytest_cache/
+
+# -------------------------
+# PowerShell
+# -------------------------
+# (no compiled files, just ignore logs and lastupdate)
+*.log
+lastupdate.txt
+
+# -------------------------
+# Bash / Shell
+# -------------------------
+*.log
+lastupdate.txt
+
+# -------------------------
+# Docker
+# -------------------------
+*.log
+lastupdate.txt
+
+# -------------------------
+# General
+# -------------------------
+*.swp
+.DS_Store
+Thumbs.db
+**/*.log
+**/lastupdate.txt
