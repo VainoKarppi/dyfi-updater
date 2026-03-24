@@ -4,7 +4,8 @@
   "DomainNames": [
     "address.dy.fi"
   ],
-  "UpdateIntervalDays": 6,
+  "ForceUpdateIntervalDays": 6,
+  "IpCheckIntervalMinutes": 2,
   "UpdateNow": true,
   "UseLogFile": true
 }

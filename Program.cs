@@ -20,11 +20,11 @@ if (startDir != null)
     Directory.SetCurrentDirectory(startDir);
 
 // --- Load settings ---
-Settings settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(settingsPath))!;
+settings = LoadSettingsSafe(settingsPath);
 
 LogStartupInfo(settings);
 
-DateTime nextUpdate = DateTime.Now.AddDays(settings.UpdateIntervalDays);
+DateTime nextUpdate = DateTime.Now.AddDays(settings.ForceUpdateIntervalDays);
 
 // --- Restore last update time ---
 string lastUpdateFile = Path.Combine(Directory.GetCurrentDirectory(), "lastupdate.txt");
@@ -32,7 +32,7 @@ if (File.Exists(lastUpdateFile))
 {
     DateTime lastUpdate = DateTime.Parse(File.ReadAllText(lastUpdateFile));
     Log($"Last update: {lastUpdate}");
-    nextUpdate = lastUpdate.AddDays(settings.UpdateIntervalDays);
+    nextUpdate = lastUpdate.AddDays(settings.ForceUpdateIntervalDays);
 }
 else
 {
@@ -52,8 +52,20 @@ while (true)
 {
     try
     {
+        // Reload settings on each run, to allow live editing
+        settings = LoadSettingsSafe(settingsPath);
+
+        TimeSpan delay = TimeSpan.FromMinutes(settings.IpCheckIntervalMinutes);
+
         string currentIp = await GetIpAddressAsync(client);
         DateTime now = DateTime.Now;
+
+        // HARD SKIP: absolutely nothing happens if IP unchanged
+        if (currentIp == lastIp && !settings.UpdateNow && now <= nextUpdate)
+        {
+            await Task.Delay(delay);
+            continue;
+        }
 
         if (settings.UpdateNow || now > nextUpdate || lastIp != currentIp)
         {
@@ -75,21 +87,20 @@ while (true)
             await File.WriteAllTextAsync(lastUpdateFile, DateTime.Now.ToString());
             settings.UpdateNow = false;
             lastIp = currentIp;
-            nextUpdate = now.AddDays(settings.UpdateIntervalDays);
+            nextUpdate = now.AddDays(settings.ForceUpdateIntervalDays);
+
             Log($"Next scheduled update: {nextUpdate}");
         }
-        else
-        {
-            Log($"No update needed. Current IP: {currentIp}, Next update: {nextUpdate}");
-        }
-
-        // Wait 1 hour before next check
-        await Task.Delay(TimeSpan.FromHours(1));
+    
+        await Task.Delay(delay);
     }
     catch (Exception ex)
     {
-        Log($"ERROR: {ex.Message} - Restarting loop in 60 minutes...");
-        await Task.Delay(TimeSpan.FromMinutes(60));
+        TimeSpan delay = TimeSpan.FromMinutes(settings.IpCheckIntervalMinutes);
+
+        Log($"ERROR: {ex.Message} - Restarting loop in {delay.TotalMinutes} minutes...");
+        await Task.Delay(delay);
+
         client = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
     }
 }
@@ -190,10 +201,27 @@ void LogStartupInfo(Settings settings)
     Log($"Root directory: {Directory.GetCurrentDirectory()}");
     Log($"Username: {settings.Username}");
     Log($"Domains: {string.Join(", ", settings.DomainNames)}");
-    Log($"Update interval: {settings.UpdateIntervalDays} days");
+    Log($"Force Update interval: {settings.ForceUpdateIntervalDays} days");
+    Log($"IP Check interval: {settings.IpCheckIntervalMinutes} minutes");
     Log($"Update immediately on start: {settings.UpdateNow}");
     Log($"Logging to file: {settings.UseLogFile}");
     Log("========================================");
+}
+
+
+Settings LoadSettingsSafe(string path) {
+    for (int i = 0; i < 3; i++) {
+        try {
+            string json = File.ReadAllText(path);
+            return JsonSerializer.Deserialize<Settings>(json)!;
+        } catch (JsonException) { // File likely being written → wait and retry
+            Thread.Sleep(60);
+        } catch (IOException) { // File temporarily locked → wait and retry
+            Thread.Sleep(60);
+        }
+    }
+
+    throw new Exception("Failed to read settings.json safely.");
 }
 
 // ---------------- SETTINGS CLASS ----------------
@@ -203,17 +231,38 @@ class Settings
     public string Username { get; set; } = "my.email@email.com";
     public string Password { get; set; } = "passw0rd";
 
-    // Multiple domains
     public string[] DomainNames { get; set; } = new[] { "address.dy.fi" };
 
-    public int UpdateIntervalDays { get; set; } = 6;
+    public int ForceUpdateIntervalDays { get; set; } = 6;
+
+    private int _ipCheckIntervalMinutes = 2;
+    public int IpCheckIntervalMinutes
+    {
+        get => _ipCheckIntervalMinutes;
+        set => _ipCheckIntervalMinutes = value < 1 ? 1 : value;
+    }
+
     public bool UpdateNow { get; set; } = true;
     public bool UseLogFile { get; set; } = true;
 
     [JsonConstructor]
-    public Settings(string username, string password, string[] domainNames, int updateIntervalDays, bool updateNow, bool useLogFile) =>
-        (Username, Password, DomainNames, UpdateIntervalDays, UpdateNow, UseLogFile) =
-        (username, password, domainNames, updateIntervalDays, updateNow, useLogFile);
+    public Settings(
+        string username,
+        string password,
+        string[] domainNames,
+        int forceUpdateIntervalDays,
+        int ipCheckIntervalMinutes,
+        bool updateNow,
+        bool useLogFile)
+    {
+        Username = username;
+        Password = password;
+        DomainNames = domainNames;
+        ForceUpdateIntervalDays = forceUpdateIntervalDays;
+        IpCheckIntervalMinutes = ipCheckIntervalMinutes;
+        UpdateNow = updateNow;
+        UseLogFile = useLogFile;
+    }
 
     public Settings() { }
 }
