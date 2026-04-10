@@ -1,5 +1,7 @@
 # DYFI Updater
 
+[![CI](https://github.com/VainoKarppi/dyfi-updater/actions/workflows/ci.yml/badge.svg)](https://github.com/VainoKarppi/dyfi-updater/actions/workflows/ci.yml)
+
 ## Overview
 This is a simple updater script to automatically update DNS for the **dy.fi** free domain system.  
 It is built specifically for the dy.fi service at https://www.dy.fi/, which provides free dynamic DNS hostnames under the `.dy.fi` domain.  
