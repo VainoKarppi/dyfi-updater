@@ -72,4 +72,3 @@ echo PUBLISH DONE!
 cd "%OUT%"
 echo BUILD DIR: %CD%
 echo.
-pause

@@ -52,6 +52,10 @@ for %%d in (python docker powershell shell) do (
     )
 )
 
+:: ---------------- COPY ROOT DOCUMENTS ----------------
+echo Copying root documentation...
+if exist "%REPO_ROOT%\USAGE.txt" copy /y "%REPO_ROOT%\USAGE.txt" "%TARGET_ROOT%\USAGE.txt" >nul
+
 :: ---------------- FINAL CLEANUP ----------------
 echo Removing extra runtime artifacts from final package...
 for /r "%TARGET_ROOT%" %%f in (log.log lastupdate.txt) do (
@@ -61,4 +65,3 @@ for /r "%TARGET_ROOT%" %%f in (log.log lastupdate.txt) do (
 echo.
 echo Published package created at: %TARGET_ROOT%
 echo.
-pause

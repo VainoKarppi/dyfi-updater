@@ -1,0 +1,142 @@
+DYFI Updater - Usage Guide
+
+Overview
+========
+DYFI Updater keeps one or more dy.fi dynamic DNS hostnames in sync with your current external IP address.
+It supports multiple implementation types in the repository:
+- C#      (csharp/)
+- Python  (python/)
+- PowerShell (powershell/)
+- Bash/Shell (shell/)
+- Docker  (docker/)
+
+Every implementation uses the same JSON-based configuration file format and the same update flow:
+1. Ensure a local settings.json file exists in the same folder as the app.
+2. Load settings from settings.json.
+3. Detect the current external IP address using public IP services.
+4. Update each configured dy.fi hostname if the IP changed, if UpdateNow is true, or if the force interval expired.
+5. Save `lastupdate.txt` for schedule tracking and optionally log each run to `log.log`.
+
+Usage
+=====
+Publication layout
+------------------
+The published package contains one folder for each implementation: csharp, python, powershell, shell, docker.
+Each implementation folder contains its own `settings.json` and entrypoint script or executable.
+
+General rules
+-------------
+- Run the executable or script from within its own implementation folder.
+- Keep `settings.json` in the same folder as the app or executable.
+- The app creates `lastupdate.txt` on first run and updates it after each successful update.
+- If `UseLogFile` is enabled, the app writes `log.log` in the same folder.
+
+Common settings.json schema
+===========================
+The configuration format is shared across all implementations.
+
+Username
+  Your dy.fi account username or email address.
+
+Password
+  Your dy.fi account password.
+
+DomainNames
+  Array of hostnames to update.
+  Example:
+  ["home", "office.dy.fi"]
+  Each domain is normalized to end with `.dy.fi` automatically if it is missing.
+
+ForceUpdateIntervalDays
+  Number of days before forcing a refresh even if the IP did not change.
+  Default: 6
+  Recommended: do not set lower than 3 days.
+
+IpCheckIntervalMinutes
+  How often the app checks the external IP address.
+  Default: 2
+  Minimum enforced value: 1 minute.
+
+UpdateNow
+  When true, performs an immediate update on the next loop iteration.
+  The code resets this value to false after the update.
+
+UseLogFile
+  When true, the app appends log messages into `log.log`.
+  When false, only console output is produced.
+
+Example settings.json
+=====================
+{
+  "Username": "my.email@email.com",
+  "Password": "passw0rd",
+  "DomainNames": ["address.dy.fi"],
+  "ForceUpdateIntervalDays": 6,
+  "IpCheckIntervalMinutes": 2,
+  "UpdateNow": true,
+  "UseLogFile": true
+}
+
+Implementation details
+======================
+C#
+--
+- The published C# build is a self-contained executable for each platform.
+- Each runtime folder includes `settings.json` alongside the executable.
+- The app reloads `settings.json` on every loop, so live edits are supported.
+- `settings.json` is copied automatically into output folders during C# publish.
+
+Python
+------
+- Run `python dyfi_updater.py` inside the `python/` folder.
+- Uses `requests` to fetch external IP and perform the dy.fi update.
+- If `settings.json` is missing, it creates one from defaults.
+
+PowerShell
+----------
+- Run `./dyfi_updater.ps1` inside the `powershell/` folder.
+- Uses `Invoke-RestMethod` and a local `settings.json` file.
+- If `settings.json` is missing, it creates one from defaults.
+
+Shell
+-----
+- Run `./dyfi_updater.sh` inside the `shell/` folder.
+- Uses `curl` and basic shell JSON parsing helpers.
+- If `settings.json` is missing, it creates one from defaults.
+
+Docker
+------
+- The Docker image runs the Python updater.
+- The Dockerfile copies `python/dyfi_updater.py` and `python/settings.json` into `/app`.
+- You can mount your own `settings.json` file into the container to override the example.
+- Default command: `python dyfi_updater.py`.
+
+Publish packaging
+=================
+When creating a published release using the repository's publish scripts, this `USAGE.txt` file is copied into the final package root.
+That means the published archive contains the usage guide alongside the implementation folders.
+
+Troubleshooting
+===============
+Cannot get external IP
+----------------------
+- Confirm the machine has internet access.
+- Check that the public IP services are reachable.
+- If one service fails, the implementations try multiple services in sequence.
+
+Authentication failures
+-----------------------
+- Verify `Username` and `Password` in `settings.json`.
+- Ensure your dy.fi account is active.
+
+Domain update failures
+----------------------
+- Make sure each hostname in `DomainNames` is valid.
+- If your entry lacks `.dy.fi`, the code appends it automatically.
+- Check the service response in `log.log` if logging is enabled.
+
+Scheduled updates
+-----------------
+- `lastupdate.txt` stores the last successful update timestamp.
+- `ForceUpdateIntervalDays` controls how often the app updates even when the IP is unchanged.
+- `UpdateNow: true` forces an immediate update on the next loop run.

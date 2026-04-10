@@ -47,6 +47,11 @@ for dir in python docker powershell shell; do
   echo "Copied $dir to $target_dir"
 done
 
+if [ -f "$repo_root/USAGE.txt" ]; then
+  echo "Copying root documentation..."
+  cp "$repo_root/USAGE.txt" "$target_root/USAGE.txt"
+fi
+
 echo "Removing extra runtime artifacts from final package..."
 find "$target_root" -type f \( -name 'log.log' -o -name 'lastupdate.txt' \) -delete
 

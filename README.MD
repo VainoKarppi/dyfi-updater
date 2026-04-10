@@ -7,6 +7,10 @@ It supports multiple implementations: **C#**, **Python**, **PowerShell**, **Bash
 The script monitors your external IP and updates the domains automatically.  
 The DNS entries are released by the host after 7 days, so do not set the update interval lower than 3 days.
 
+A release package is available at: https://github.com/VainoKarppi/dyfi-updater/releases/latest
+
+This repository now includes Python, PowerShell, Shell, and Docker versions in addition to the original C# implementation.
+
 ---
 
 ## Supported Implementations
