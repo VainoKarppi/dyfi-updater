@@ -3,6 +3,14 @@
 # ---------------- CONFIG ----------------
 path=./publish
 selfContained=true
+publishArgs=(
+  -c Release
+  -p:PublishSingleFile=true
+  -p:EnableCompressionInSingleFile=true
+  -p:PublishTrimmed=true
+  -p:TrimMode=link
+  -p:PublishReadyToRun=false
+)
 
 # Set which platforms to build
 buildWinX64=true
@@ -19,71 +27,35 @@ fi
 echo "Using project file: $projFile"
 
 # ---------------- CLEAN ----------------
-rm -rf $path
+rm -rf "$path"
+mkdir -p "$path"
 echo ""
 
-# ---------------- Windows x64 ----------------
-if [ "$buildWinX64" = true ]; then
-    echo "Building win-x64 version..."
-    dotnet publish "$projFile" --output $path/win-x64 --runtime win-x64 --self-contained $selfContained
+# ---------------- BUILD FUNCTION ----------------
+build() {
+    local rid=$1
+    local label=$2
+    echo "Building $label..."
+    dotnet publish "$projFile" --output "$path/$rid" --runtime "$rid" --self-contained "$selfContained" "${publishArgs[@]}"
     if [ $? -ne 0 ]; then
-        echo "ERROR: Windows Build failed!"
-        sleep 3
+        echo "ERROR: $label build failed!"
         exit 1
     fi
     echo ""
-fi
+}
 
-# ---------------- Linux ARM64 ----------------
-if [ "$buildLinuxArm64" = true ]; then
-    echo "Building linux-arm64 version..."
-    dotnet publish "$projFile" --output $path/linux-arm64 --runtime linux-arm64 --self-contained $selfContained
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Linux-arm64 Build failed!"
-        sleep 3
-        exit 1
-    fi
-    echo ""
-fi
-
-# ---------------- Linux x64 ----------------
-if [ "$buildLinuxX64" = true ]; then
-    echo "Building linux-x64 version..."
-    dotnet publish "$projFile" --output $path/linux-x64 --runtime linux-x64 --self-contained $selfContained
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Linux-x64 Build failed!"
-        sleep 3
-        exit 1
-    fi
-    echo ""
-fi
-
-echo "Build success!"
-echo ""
-sleep 1
-
-# ---------------- OSX x64 ----------------
-if [ "$buildOsxX64" = true ]; then
-    echo "Building osx-x64 version..."
-    dotnet publish "$projFile" --output $path/osx-x64 --runtime osx-x64 --self-contained $selfContained
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Osx-x64 Build failed!"
-        sleep 3
-        exit 1
-    fi
-    echo ""
-fi
-
-echo "Build success!"
-echo ""
-sleep 1
+[ "$buildWinX64" = true ]     && build "win-x64"     "win-x64"
+[ "$buildLinuxArm64" = true ] && build "linux-arm64" "linux-arm64"
+[ "$buildLinuxX64" = true ]   && build "linux-x64"   "linux-x64"
+[ "$buildOsxX64" = true ]     && build "osx-x64"     "osx-x64"
 
 # ---------------- Copy settings.json ----------------
 if [ -f "./settings.json" ]; then
     echo "Copying settings.json..."
-    $buildWinX64 && cp ./settings.json $path/win-x64/settings.json
-    $buildLinuxArm64 && cp ./settings.json $path/linux-arm64/settings.json
-    $buildLinuxX64 && cp ./settings.json $path/linux-x64/settings.json
+    [ "$buildWinX64" = true ]     && cp ./settings.json "$path/win-x64/settings.json"
+    [ "$buildLinuxArm64" = true ] && cp ./settings.json "$path/linux-arm64/settings.json"
+    [ "$buildLinuxX64" = true ]   && cp ./settings.json "$path/linux-x64/settings.json"
+    [ "$buildOsxX64" = true ]     && cp ./settings.json "$path/osx-x64/settings.json"
 else
     echo "ERROR: settings.json not found, cannot continue!"
     exit 1
@@ -91,7 +63,5 @@ fi
 
 echo ""
 echo "PUBLISH DONE!"
-cd $path
+cd "$path"
 echo "BUILD DIR: $PWD"
-echo ""
-read -p "Press enter to continue"

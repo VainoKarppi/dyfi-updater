@@ -11,7 +11,7 @@ if (!File.Exists(settingsPath))
 {
     Console.WriteLine("No settings.json found, creating default settings...");
     Settings defaultSettings = new Settings();
-    string json = JsonSerializer.Serialize(defaultSettings, new JsonSerializerOptions { WriteIndented = true });
+    string json = JsonSerializer.Serialize(defaultSettings, SettingsJsonContext.Default.Settings);
     File.WriteAllText(settingsPath, json, Encoding.UTF8);
 }
 
@@ -20,7 +20,7 @@ if (startDir != null)
     Directory.SetCurrentDirectory(startDir);
 
 // --- Load settings ---
-settings = LoadSettingsSafe(settingsPath);
+Settings settings = LoadSettingsSafe(settingsPath);
 
 LogStartupInfo(settings);
 
@@ -213,7 +213,7 @@ Settings LoadSettingsSafe(string path) {
     for (int i = 0; i < 3; i++) {
         try {
             string json = File.ReadAllText(path);
-            return JsonSerializer.Deserialize<Settings>(json)!;
+            return JsonSerializer.Deserialize(json, SettingsJsonContext.Default.Settings)!;
         } catch (JsonException) { // File likely being written → wait and retry
             Thread.Sleep(60);
         } catch (IOException) { // File temporarily locked → wait and retry
@@ -265,4 +265,9 @@ class Settings
     }
 
     public Settings() { }
+}
+
+[JsonSerializable(typeof(Settings))]
+internal partial class SettingsJsonContext : JsonSerializerContext
+{
 }

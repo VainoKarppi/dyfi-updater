@@ -51,3 +51,5 @@ lastupdate.txt
 Thumbs.db
 **/*.log
 **/lastupdate.txt
+
+**/publish
