@@ -61,6 +61,13 @@ else
     exit 1
 fi
 
+# ---------------- Generate hashes ----------------
+echo "Generating SHA256 hashes..."
+[ "$buildWinX64" = true ]     && sha256sum "$path/win-x64/dyfi-updater.exe" > "$path/win-x64/hashes.sha256"
+[ "$buildLinuxArm64" = true ] && sha256sum "$path/linux-arm64/dyfi-updater" > "$path/linux-arm64/hashes.sha256"
+[ "$buildLinuxX64" = true ]   && sha256sum "$path/linux-x64/dyfi-updater" > "$path/linux-x64/hashes.sha256"
+[ "$buildOsxX64" = true ]     && sha256sum "$path/osx-x64/dyfi-updater" > "$path/osx-x64/hashes.sha256"
+
 echo ""
 echo "PUBLISH DONE!"
 cd "$path"

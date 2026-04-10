@@ -147,3 +147,18 @@ Scheduled updates
 - `lastupdate.txt` stores the last successful update timestamp.
 - `ForceUpdateIntervalDays` controls how often the app updates even when the IP is unchanged.
 - `UpdateNow: true` forces an immediate update on the next loop run.
+
+Verifying builds
+================
+To verify that the executable files in this package are built from the source code in Program.cs:
+
+1. Download the source code from the GitHub repository.
+2. Build the C# project using the same publish scripts.
+3. Compare the SHA256 hashes of the executables.
+
+Each platform folder contains a `hashes.sha256` file with the expected hashes for the executables in that folder.
+You can verify using:
+- Windows: `certutil -hashfile dyfi-updater.exe SHA256`
+- Linux/Mac: `sha256sum dyfi-updater`
+
+The hashes ensure the .exe files are exactly as built from the provided source code.

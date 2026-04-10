@@ -62,6 +62,26 @@ for /r "%TARGET_ROOT%" %%f in (log.log lastupdate.txt) do (
     if exist "%%f" del /q "%%f"
 )
 
+:: ---------------- APPEND HASHES TO USAGE.TXT ----------------
+echo Appending build hashes to USAGE.txt...
+powershell -Command "
+$usageFile = '%TARGET_ROOT%\USAGE.txt'
+$hashes = @{}
+foreach ($platform in @('win-x64', 'linux-arm64', 'linux-x64', 'osx-x64')) {
+    $hashFile = '%TARGET_ROOT%\csharp\' + $platform + '\hashes.sha256'
+    if (Test-Path $hashFile) {
+        $content = Get-Content $hashFile -Raw
+        $hashes[$platform] = $content.Trim()
+    }
+}
+if ($hashes.Count -gt 0) {
+    Add-Content $usageFile \"`nBuild Hashes (Created automatically on 'publish_all')`n============`n\"
+    foreach ($platform in $hashes.Keys) {
+        Add-Content $usageFile \"`n$platform`:`n\" + $hashes[$platform]
+    }
+}
+"
+
 echo.
 echo Published package created at: %TARGET_ROOT%
 echo.

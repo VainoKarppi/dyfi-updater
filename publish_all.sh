@@ -55,4 +55,21 @@ fi
 echo "Removing extra runtime artifacts from final package..."
 find "$target_root" -type f \( -name 'log.log' -o -name 'lastupdate.txt' \) -delete
 
+# ---------------- APPEND HASHES TO USAGE.TXT ----------------
+echo "Appending build hashes to USAGE.txt..."
+usage_file="$target_root/USAGE.txt"
+if [ -f "$usage_file" ]; then
+  echo "" >> "$usage_file"
+  echo "Build Hashes (Created automatically on 'publish_all')" >> "$usage_file"
+  echo "============" >> "$usage_file"
+  for platform in win-x64 linux-arm64 linux-x64 osx-x64; do
+    hash_file="$target_root/csharp/$platform/hashes.sha256"
+    if [ -f "$hash_file" ]; then
+      echo "" >> "$usage_file"
+      echo "$platform:" >> "$usage_file"
+      cat "$hash_file" >> "$usage_file"
+    fi
+  done
+fi
+
 echo "Published package created at: $target_root"

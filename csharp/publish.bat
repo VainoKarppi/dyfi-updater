@@ -67,6 +67,25 @@ if "%BUILD_LINUX_ARM64%"=="true" copy /y ".\settings.json" "%OUT%\linux-arm64\se
 if "%BUILD_LINUX_X64%"=="true"   copy /y ".\settings.json" "%OUT%\linux-x64\settings.json"
 if "%BUILD_OSX_X64%"=="true"     copy /y ".\settings.json" "%OUT%\osx-x64\settings.json"
 
+:: ---------------- Generate hashes ----------------
+echo Generating SHA256 hashes...
+if "%BUILD_WIN_X64%"=="true" (
+    powershell -Command "Get-FileHash -Algorithm SHA256 '%OUT%\win-x64\dyfi-updater.exe' | Select-Object -ExpandProperty Hash | Out-File -FilePath '%OUT%\win-x64\hashes.sha256' -Encoding ASCII"
+    echo dyfi-updater.exe >> "%OUT%\win-x64\hashes.sha256"
+)
+if "%BUILD_LINUX_ARM64%"=="true" (
+    powershell -Command "Get-FileHash -Algorithm SHA256 '%OUT%\linux-arm64\dyfi-updater' | Select-Object -ExpandProperty Hash | Out-File -FilePath '%OUT%\linux-arm64\hashes.sha256' -Encoding ASCII"
+    echo dyfi-updater >> "%OUT%\linux-arm64\hashes.sha256"
+)
+if "%BUILD_LINUX_X64%"=="true" (
+    powershell -Command "Get-FileHash -Algorithm SHA256 '%OUT%\linux-x64\dyfi-updater' | Select-Object -ExpandProperty Hash | Out-File -FilePath '%OUT%\linux-x64\hashes.sha256' -Encoding ASCII"
+    echo dyfi-updater >> "%OUT%\linux-x64\hashes.sha256"
+)
+if "%BUILD_OSX_X64%"=="true" (
+    powershell -Command "Get-FileHash -Algorithm SHA256 '%OUT%\osx-x64\dyfi-updater' | Select-Object -ExpandProperty Hash | Out-File -FilePath '%OUT%\osx-x64\hashes.sha256' -Encoding ASCII"
+    echo dyfi-updater >> "%OUT%\osx-x64\hashes.sha256"
+)
+
 echo.
 echo PUBLISH DONE!
 cd "%OUT%"
