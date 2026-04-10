@@ -3,6 +3,13 @@ DYFI Updater - Usage Guide
 Overview
 ========
 DYFI Updater keeps one or more dy.fi dynamic DNS hostnames in sync with your current external IP address.
+It is made specifically for the dy.fi service at https://www.dy.fi/, which offers free dynamic DNS hostnames under the `.dy.fi` domain.
+
+The dy.fi service lets Finnish users register up to five `.dy.fi` names and point them to a home computer, website, or other IP address.  
+This makes it easy to run a home server on a dynamic IP and keep a stable hostname that follows the current address.  
+If a dy.fi name is not currently pointed to an IP address, dy.fi can also forward browser requests to a configured homepage URL.  
+
+The service is free and hobby-run, with minimal guarantees, and is intended for Finnish users.
 It supports multiple implementation types in the repository:
 - C#      (csharp/)
 - Python  (python/)

@@ -2,6 +2,15 @@
 
 ## Overview
 This is a simple updater script to automatically update DNS for the **dy.fi** free domain system.  
+It is built specifically for the dy.fi service at https://www.dy.fi/, which provides free dynamic DNS hostnames under the `.dy.fi` domain.  
+
+The dy.fi service lets Finnish users reserve up to five `.dy.fi` hostnames and point them to a home computer, website, or other IP address.  
+This is useful when your ISP assigns a dynamic IP address and you want a stable, easy-to-remember hostname that follows your current address.  
+If your dy.fi name is not pointed at an IP address, dy.fi can also forward visitors to a configured home page URL.  
+
+The service is offered for free as a hobby project, with minimal guarantees, and is targeted at Finnish users.  
+It can also be used as a short alias for a longer web address or as a CNAME target for your own domain.  
+
 It supports multiple implementations: **C#**, **Python**, **PowerShell**, **Bash**, and **Docker**.
 
 The script monitors your external IP and updates the domains automatically.  
