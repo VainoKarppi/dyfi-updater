@@ -69,7 +69,7 @@ while ($true){
                 try{
                     $resp = Invoke-RestMethod -Uri $url -Method Post -Credential (New-Object System.Management.Automation.PSCredential($Settings.Username,(ConvertTo-SecureString $Settings.Password -AsPlainText -Force))) -Body $url
                     Log "UPDATED: $domain to $CurrentIp"
-                } catch { Log "Failed updating $domain: $_" }
+                } catch { Log ("Failed updating {0}: {1}" -f $domain, $_) }
             }
             $LastIp = $CurrentIp
             $Settings.UpdateNow = $false
