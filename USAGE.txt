@@ -45,7 +45,7 @@ DomainNames
   Array of hostnames to update.
   Example:
   ["home", "office.dy.fi"]
-  Each domain is normalized to end with `.dy.fi` automatically if it is missing.
+  You do not need to include `.dy.fi` in the names; it is appended automatically if missing.
 
 ForceUpdateIntervalDays
   Number of days before forcing a refresh even if the IP did not change.

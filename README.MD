@@ -33,6 +33,7 @@ Set:
 - `Username` – your dy.fi account email  
 - `Password` – your dy.fi password  
 - `DomainNames` – array of domains to update  
+  - You do not need to include `.dy.fi`; it is appended automatically if missing.  
 - `ForceUpdateIntervalDays` – how often to force an update (minimum 3)  
 - `IpCheckIntervalMinutes` – how often to check your external IP  
 - `UpdateNow` – set `true` to force immediate update on start  
