@@ -30,6 +30,7 @@ Publication layout
 ------------------
 The published package contains one folder for each implementation: csharp, python, powershell, shell, docker.
 Each implementation folder contains its own `settings.json` and entrypoint script or executable.
+The package root also contains the C# installer/uninstaller scripts described below.
 
 General rules
 -------------
@@ -37,6 +38,69 @@ General rules
 - Keep `settings.json` in the same folder as the app or executable.
 - The app creates `lastupdate.txt` on first run and updates it after each successful update.
 - If `UseLogFile` is enabled, the app writes `log.log` in the same folder.
+
+Installing as a background service (C# build)
+==============================================
+The published package includes installer and uninstaller scripts that set up the C# executable
+to run automatically in the background. These scripts operate only on the `csharp/` build; the
+Python, PowerShell, Shell, and Docker implementations are run manually or scheduled by other means.
+
+Linux - install.sh / uninstall.sh
+----------------------------------
+Requirements: run with sudo, from the root of the extracted release package.
+
+Install:
+  sudo ./install.sh
+
+What it does:
+- Detects your CPU architecture (x86_64 or aarch64) and selects the matching build.
+- Copies the csharp/ folder (and any python/, docker/, powershell/, shell/ folders present) to
+  /opt/dyfi-updater.
+- Creates and enables a systemd service named `dyfi-updater` that starts on boot and restarts
+  automatically if it stops.
+- Runs the service as the user who invoked sudo (not as root).
+
+Useful commands after installing:
+  Status:  systemctl status dyfi-updater
+  Logs:    journalctl -u dyfi-updater -f
+  Stop:    sudo systemctl stop dyfi-updater
+  Start:   sudo systemctl start dyfi-updater
+
+Uninstall:
+  sudo ./uninstall.sh
+
+This stops and disables the systemd service, removes the service file, and deletes
+/opt/dyfi-updater.
+
+Windows - install.ps1 / uninstall.ps1
+---------------------------------------
+Requirements: run PowerShell as Administrator, from the root of the extracted release package.
+
+Install:
+  .\install.ps1
+  .\install.ps1 -Method Startup
+
+What it does:
+- Detects your CPU architecture (win-x64 or win-arm64) and selects the matching build.
+- Copies the csharp/ folder (and any python/, docker/, powershell/, shell/ folders present) to
+  %ProgramFiles%\dyfi-updater.
+- Registers the app to start automatically, using one of two methods:
+  * TaskScheduler (default): creates a scheduled task that runs at logon and restarts
+    automatically if it stops.
+  * Startup: places a shortcut in your Startup folder instead, so the app launches whenever
+    you log in.
+
+Useful commands after installing with TaskScheduler:
+  Status:  Get-ScheduledTask -TaskName dyfi-updater | Get-ScheduledTaskInfo
+  Stop:    Stop-ScheduledTask -TaskName dyfi-updater
+  Start:   Start-ScheduledTask -TaskName dyfi-updater
+
+Uninstall:
+  .\uninstall.ps1
+
+This removes the scheduled task (if present), removes the Startup shortcut (if present), stops
+any running instance, and deletes %ProgramFiles%\dyfi-updater. It cleans up whichever startup
+method was used, so it works regardless of which -Method was chosen at install time.
 
 Common settings.json schema
 ===========================
@@ -92,6 +156,8 @@ C#
 - Each runtime folder includes `settings.json` alongside the executable.
 - The app reloads `settings.json` on every loop, so live edits are supported.
 - `settings.json` is copied automatically into output folders during C# publish.
+- Can be installed as a background service using install.sh (Linux) or install.ps1 (Windows);
+  see "Installing as a background service" above.
 
 Python
 ------
@@ -122,6 +188,8 @@ Publish packaging
 =================
 When creating a published release using the repository's publish scripts, this `USAGE.txt` file is copied into the final package root.
 That means the published archive contains the usage guide alongside the implementation folders.
+The publish scripts also copy install.sh, install.ps1, uninstall.sh, and uninstall.ps1 into the
+package root, and will fail the build if any of the four are missing from the repository.
 
 Troubleshooting
 ===============
@@ -147,6 +215,16 @@ Scheduled updates
 - `lastupdate.txt` stores the last successful update timestamp.
 - `ForceUpdateIntervalDays` controls how often the app updates even when the IP is unchanged.
 - `UpdateNow: true` forces an immediate update on the next loop run.
+
+Installer/uninstaller issues
+-----------------------------
+- Linux: install.sh and uninstall.sh must be run with sudo. If installation fails partway
+  through, re-run uninstall.sh before trying install.sh again.
+- Windows: install.ps1 and uninstall.ps1 must be run from an elevated (Administrator)
+  PowerShell session. If installation fails partway through, re-run uninstall.ps1 before trying
+  install.ps1 again.
+- If a service or task from a previous version is still running, both installers stop and
+  replace it automatically; you do not need to uninstall before upgrading.
 
 Verifying builds
 ================

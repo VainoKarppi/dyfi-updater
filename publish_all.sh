@@ -55,6 +55,39 @@ fi
 echo "Removing extra runtime artifacts from final package..."
 find "$target_root" -type f \( -name 'log.log' -o -name 'lastupdate.txt' \) -delete
 
+
+# ---------------- COPY INSTALLERS ----------------
+
+echo "Copying installers..."
+
+if [ ! -f "$repo_root/install.sh" ]; then
+  echo "ERROR: install.sh not found!"
+  exit 1
+fi
+
+if [ ! -f "$repo_root/install.ps1" ]; then
+  echo "ERROR: install.ps1 not found!"
+  exit 1
+fi
+
+if [ ! -f "$repo_root/uninstall.sh" ]; then
+  echo "ERROR: uninstall.sh not found!"
+  exit 1
+fi
+
+if [ ! -f "$repo_root/uninstall.ps1" ]; then
+  echo "ERROR: uninstall.ps1 not found!"
+  exit 1
+fi
+
+cp "$repo_root/install.sh" "$target_root/install.sh"
+cp "$repo_root/install.ps1" "$target_root/install.ps1"
+cp "$repo_root/uninstall.sh" "$target_root/uninstall.sh"
+cp "$repo_root/uninstall.ps1" "$target_root/uninstall.ps1"
+
+chmod +x "$target_root/install.sh"
+chmod +x "$target_root/uninstall.sh"
+
 # ---------------- APPEND HASHES TO USAGE.TXT ----------------
 echo "Appending build hashes to USAGE.txt..."
 usage_file="$target_root/USAGE.txt"
@@ -71,5 +104,21 @@ if [ -f "$usage_file" ]; then
     fi
   done
 fi
+
+
+# ---------------- CREATE ZIP ----------------
+
+zip_path="$publish_root/dyfi_updater_$version.zip"
+
+echo "Creating ZIP archive: $zip_path"
+
+rm -f "$zip_path"
+
+(
+  cd "$publish_root"
+  zip -r "$zip_path" "dyfi_updater_$version"
+)
+
+echo "ZIP package created at: $zip_path"
 
 echo "Published package created at: $target_root"
